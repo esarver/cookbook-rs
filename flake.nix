@@ -1,7 +1,8 @@
 {
-    description = "A commandline menu generator";
+    description = "A very basic flake";
+
     inputs = {
-        nixpkgs.url = "github:nixos/nixpkgs/nixos-24.05";
+        nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-unstable";
         flake-utils.url = "github:numtide/flake-utils";
         rust-overlay = {
             url = "github:oxalica/rust-overlay";
@@ -10,24 +11,24 @@
                 flake-utils.follows = "flake-utils";
             };
         };
-    };
+  };
+
     outputs = { self, nixpkgs, flake-utils, rust-overlay }:
-        flake-utils.lib.eachDefaultSystem
-            (system:
-                let
-                    overlays = [ (import rust-overlay) ];
-                    pkgs = import nixpkgs {
-                        inherit system overlays;
-                    };
-                    rustToolchain = pkgs.pkgsBuildHost.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
-                    nativeBuildInputs = with pkgs; [ rustToolchain ];
-                    buildInputs = with pkgs; [ ];
-                in
-                with pkgs;
-                {
-                    devShells.default = mkShell {
-                        inherit buildInputs nativeBuildInputs;
-                    };
-                }
-            );
+        flake-utils.lib.eachDefaultSystem (system:
+            let
+                overlays = [ (import rust-overlay) ];
+                pkgs = import nixpkgs {
+                    inherit system overlays;
+                };
+                rustToolchain = pkgs.pkgsBuildHost.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
+                nativeBuildInputs = with pkgs; [ rustToolchain ];
+                buildInputs = with pkgs; [ ];
+            in
+            with pkgs;
+            {
+                devShells.default = mkShell {
+                    inherit buildInputs nativeBuildInputs;
+                };
+            }
+        );
 }
