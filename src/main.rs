@@ -1,70 +1,47 @@
-use anyhow;
+#![feature(pattern)]
 
 use clap::Parser;
+use menu::{Cookbook, Meal};
 
-pub mod error {
+pub mod error;
+pub mod log;
+pub mod menu;
 
-    #[derive(Debug, thiserror::Error)]
-    pub enum Error {
+fn main() -> anyhow::Result<()> {
+    let cli = cli::Parser::parse();
 
-    }
-}
-
-pub mod menu {
-    use serde::{Deserialize, Serialize};
-
-    use crate::error;
-
-    use tracing::error;
-
-    pub struct Cookbook {
-        book: Vec<Meal>,
+    if cli.verbose {
+        log::start_stderr_logger()?;
     }
 
-    impl Cookbook {
-        pub async fn connect(file: PathBuf) -> Result<(), error::Error> {
-            let file = File::open(file)?;
-            let file = BufReader::new(file);
-
-            let book = serde_json::from_reader(file)?;
-        }
-
-        pub fn add(&mut self, meal: Meal) -> Result<u64, error::Error> {
-
-        }
-
-        pub fn search(&mut self, pattern: String) -> Result<Vec<Meal>, error::Error> {
-
-        }
-
-        pub fn info(&mut self, name: String) -> Result<Meal, error::Error> {
-
-        }
-
-        pub fn commit(&mut self) -> Result<(), error::Error> {
-
-        }
+    if !cli.data.exists() {
+        let _ = std::fs::File::create(&cli.data)?;
     }
+    let mut cookbook = Cookbook::connect(&cli.data)?;
 
-    impl Drop for Cookbook {
-        fn drop(self) {
-            if let Err(e) = self.commit() {
-                error!("Error committing cookbook: {e}");
+    match cli.subcommand {
+        cli::SubCommand::Add { name, tags } => {
+            cookbook.add(Meal::new(name, tags))?;
+        }
+        cli::SubCommand::Info { name } => {
+            cookbook.info(name)?;
+        }
+        cli::SubCommand::List => {
+            for (i, meal) in cookbook.list().iter().enumerate() {
+                println!("{i}: {}", meal.name);
             }
-
+        }
+        cli::SubCommand::Search { pattern } => {
+            cookbook.search(&pattern)?;
         }
     }
 
-    #[derive(Debug, Serialize, Deserialize, PartialEq)]
-    pub struct Meal {
-        pub name: String,
-        pub tags: Vec<String>,
-    }
-
-
+    Ok(())
 }
 
 pub mod cli {
+
+    use std::path::PathBuf;
 
     #[derive(Debug, clap::Parser)]
     pub struct Parser {
@@ -72,8 +49,8 @@ pub mod cli {
         #[arg(long, short)]
         pub verbose: bool,
 
-        /// The database to which to connect to, defaults to PWD
-        #[arg(long, short, default_value_t = ".")]
+        /// The database to which to connect to, defaults to `"${PWD}/cookbook.json"`
+        #[arg(long, short, default_value = "./cookbook.json")]
         pub data: PathBuf,
 
         #[command(subcommand)]
@@ -92,44 +69,19 @@ pub mod cli {
             tags: Option<Vec<String>>,
         },
 
-        /// Find a meal using the provided pattern
-        Search {
-            /// The pattern to use to find the given meal
-            pattern: String,
-        },
-
         /// Show the detailed information about the meal with the given name
         Info {
             /// The name of the meal about which you want information
             name: String,
         },
+
+        /// List the names of all meals in the cookbook
+        List,
+
+        /// Find a meal using the provided pattern
+        Search {
+            /// The pattern to use to find the given meal
+            pattern: String,
+        },
     }
-}
-
-pub mod log {
-    use tracing::level_filters::LevelFilter;
-    use tracing_subscriber::{Registry, prelude::*};
-
-    pub fn start_stderr_logger() -> anyhow::Result<()>{
-        let err = tracing_subscriber::fmt::layer()
-            .with_ansi(true)
-            .with_writer(std::io::stderr);
-
-        let logger = Registry::default().with(LevelFilter::TRACE).with(err);
-
-        tracing::subscriber::set_global_default(logger)?;
-        Ok(())
-    }
-}
-
-fn main() -> anyhow::Result<()> {
-    let cli = cli::Parser::parse();
-
-    if cli.verbose {
-        log::start_stderr_logger()?;
-    }
-
-
-
-    Ok(())
 }
