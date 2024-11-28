@@ -18,7 +18,7 @@ impl Meal {
     pub fn new(name: String, tags: Option<Vec<String>>) -> Self {
         Self {
             name,
-            tags: tags.unwrap_or_else(Vec::new),
+            tags: tags.unwrap_or_default(),
         }
     }
 }
@@ -32,9 +32,13 @@ impl Cookbook {
     /// Connect to the file or database (JSON in this case).
     pub fn connect(path: &PathBuf) -> Result<Self, error::Error> {
         let file = File::open(path)?;
-        let file = BufReader::new(file);
+        let book = if file.metadata()?.len() > 0 {
+            let file = BufReader::new(file);
 
-        let book = serde_json::from_reader(file)?;
+            serde_json::from_reader(file)?
+        } else {
+            Vec::new()
+        };
 
         Ok(Self {
             book,
